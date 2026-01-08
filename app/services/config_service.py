@@ -10,7 +10,10 @@ class ConfigService:
     def _ensure_config_exists(self):
         self.config_dir.mkdir(exist_ok=True)
         if not self.config_file.exists():
-            self._write({"music_folders": []})
+            self._write({
+                "music_folders": [],
+                "spotify_visible_folder": ""
+            })
 
     def _read(self):
         with open(self.config_file, "r") as f:
@@ -28,3 +31,11 @@ class ConfigService:
         if folder_path not in data["music_folders"]:
             data["music_folders"].append(folder_path)
             self._write(data)
+
+    def set_spotify_folder(self, path: str):
+        data = self._read()
+        data["spotify_visible_folder"] = path
+        self._write(data)
+
+    def get_spotify_folder(self) -> str:
+        return self._read().get("spotify_visible_folder", "")

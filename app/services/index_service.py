@@ -1,8 +1,7 @@
 from pathlib import Path
 from mutagen import File
 from app.services.db_service import DBService
-
-SUPPORTED_EXTENSIONS = [".mp3", ".wav", ".flac"]
+from app.helpers.audio_helpers import is_supported_audio
 
 class IndexService:
     def __init__(self, db_service: DBService):
@@ -14,17 +13,24 @@ class IndexService:
             return
 
         for file_path in folder.rglob("*"):
-            if file_path.suffix.lower() in SUPPORTED_EXTENSIONS:
+            if is_supported_audio(file_path):
                 self._process_file(file_path)
 
     def _process_file(self, file_path: Path):
         try:
             audio = File(str(file_path), easy=True)
+
             title = audio.get("title", [""])[0] if audio else ""
             artist = audio.get("artist", [""])[0] if audio else ""
             album = audio.get("album", [""])[0] if audio else ""
             duration = audio.info.length if audio and hasattr(audio, "info") else 0
 
-            self.db.add_track(str(file_path), title, artist, album, duration)
+            self.db.add_track(
+                str(file_path),
+                title,
+                artist,
+                album,
+                duration
+            )
         except Exception as e:
             print(f"Failed to read {file_path}: {e}")
