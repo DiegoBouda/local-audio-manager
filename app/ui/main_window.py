@@ -98,7 +98,7 @@ class MainWindow(QMainWindow):
     def set_spotify_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Spotify-visible Folder")
         if folder:
-            self.config.set_spotify_folder(folder)
+            self.config.add_spotify_folder(folder)
             self.load_tracks()
 
     # ---------- Track Logic ----------
@@ -114,23 +114,19 @@ class MainWindow(QMainWindow):
 
     def refresh_track_list(self, tracks):
         self.track_list.clear()
-        spotify_folder = (
-            Path(self.config.get_spotify_folder())
-            if self.config.get_spotify_folder()
-            else None
-        )
-
+        spotify_folders = [
+            Path(p) for p in self.config.get_spotify_folders()
+        ]
         for track in tracks:
             self.track_list.addItem(
-                self.format_track_display(track, spotify_folder)
+                self.format_track_display(track, spotify_folders)
             )
 
-    def format_track_display(self, track, spotify_folder):
+    def format_track_display(self, track, spotify_folders):
         path = Path(track[1])
-
         if not is_supported_audio(path):
             status = "[✖ Incompatible]"
-        elif spotify_folder and not is_visible_to_spotify(path, spotify_folder):
+        elif spotify_folders and not is_visible_to_spotify(path, spotify_folders):
             status = "[⚠ Not Visible]"
         else:
             status = "[✔ Ready]"
@@ -161,11 +157,11 @@ class MainWindow(QMainWindow):
     # ---------- Spotify Prep ----------
 
     def prepare_for_spotify(self):
-        spotify_folder = self.config.get_spotify_folder()
-        if not spotify_folder:
+        spotify_folders = [
+            Path(p) for p in self.config.get_spotify_folders()
+        ]
+        if not spotify_folders:
             return
-
-        spotify_folder = Path(spotify_folder)
 
         for track in self.db_service.get_all_tracks():
             path = Path(track[1])
@@ -173,8 +169,9 @@ class MainWindow(QMainWindow):
             if not is_supported_audio(path):
                 continue
 
-            destination = spotify_folder / path.name
-            if not destination.exists():
-                copy2(path, destination)
+            for folder in spotify_folders:
+                destination = folder / path.name
+                if not destination.exists():
+                    copy2(path, destination)
 
         self.load_tracks()

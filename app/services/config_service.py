@@ -9,11 +9,20 @@ class ConfigService:
 
     def _ensure_config_exists(self):
         self.config_dir.mkdir(exist_ok=True)
+
         if not self.config_file.exists():
             self._write({
                 "music_folders": [],
-                "spotify_visible_folder": ""
+                "spotify_folders": []
             })
+            return
+
+        # migration for old configs
+        data = self._read()
+        if "spotify_visible_folder" in data:
+            old = data.pop("spotify_visible_folder")
+            data["spotify_folders"] = [old] if old else []
+            self._write(data)
 
     def _read(self):
         with open(self.config_file, "r") as f:
@@ -23,19 +32,24 @@ class ConfigService:
         with open(self.config_file, "w") as f:
             json.dump(data, f, indent=2)
 
-    def get_music_folders(self):
-        return self._read()["music_folders"]
+    # ---------- Music folders ----------
 
-    def add_music_folder(self, folder_path):
+    def get_music_folders(self):
+        return self._read().get("music_folders", [])
+
+    def add_music_folder(self, folder_path: str):
         data = self._read()
         if folder_path not in data["music_folders"]:
             data["music_folders"].append(folder_path)
             self._write(data)
 
-    def set_spotify_folder(self, path: str):
-        data = self._read()
-        data["spotify_visible_folder"] = path
-        self._write(data)
+    # ---------- Spotify folders ----------
 
-    def get_spotify_folder(self) -> str:
-        return self._read().get("spotify_visible_folder", "")
+    def get_spotify_folders(self):
+        return self._read().get("spotify_folders", [])
+
+    def add_spotify_folder(self, folder_path: str):
+        data = self._read()
+        if folder_path not in data["spotify_folders"]:
+            data["spotify_folders"].append(folder_path)
+            self._write(data)
