@@ -1,7 +1,10 @@
+import logging
 from pathlib import Path
 from mutagen import File
 from app.services.db_service import DBService
 from app.helpers.audio_helpers import is_supported_audio
+
+logger = logging.getLogger(__name__)
 
 class IndexService:
     def __init__(self, db_service: DBService):
@@ -18,6 +21,11 @@ class IndexService:
 
     def _process_file(self, file_path: Path):
         try:
+            # Check if file exists and is readable
+            if not file_path.exists():
+                logger.debug(f"File does not exist: {file_path}")
+                return
+            
             audio = File(str(file_path), easy=True)
 
             title = audio.get("title", [""])[0] if audio else ""
@@ -33,4 +41,9 @@ class IndexService:
                 duration
             )
         except Exception as e:
-            print(f"Failed to read {file_path}: {e}")
+            # Reduce log noise for common "file not ready" errors during downloads
+            error_msg = str(e).lower()
+            if 'can\'t sync' in error_msg or 'no such file' in error_msg or 'permission denied' in error_msg:
+                logger.debug(f"File not ready for reading (will retry): {file_path.name}")
+            else:
+                logger.error(f"Failed to read {file_path}: {e}")
