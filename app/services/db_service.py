@@ -25,6 +25,23 @@ class DBService:
                     duration REAL
                 )
             ''')
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS playlists (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS playlist_tracks (
+                    playlist_id INTEGER,
+                    track_id INTEGER,
+                    position INTEGER NOT NULL,
+                    PRIMARY KEY (playlist_id, track_id),
+                    FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+                    FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+                )
+            ''')
             self.conn.commit()
 
     def add_track(self, path, title="", artist="", album="", duration=0):
