@@ -23,7 +23,9 @@ from app.services.db_service import DBService
 from app.services.index_service import IndexService
 from app.services.watch_service import WatchService
 from app.services.metadata_service import MetadataService
+from app.services.duplicate_service import DuplicateService
 from app.ui.metadata_dialog import MetadataDialog, BatchMetadataDialog
+from app.ui.duplicate_dialog import DuplicateDialog
 from app.helpers.audio_helpers import (
     is_supported_audio,
     is_visible_to_spotify
@@ -45,6 +47,7 @@ class MainWindow(QMainWindow):
         self.index_service = IndexService(self.db_service)
         self.watch_service = WatchService(self.index_service, self.db_service)
         self.metadata_service = MetadataService()
+        self.duplicate_service = DuplicateService(self.db_service)
 
         # UI
         self._setup_window()
@@ -98,6 +101,7 @@ class MainWindow(QMainWindow):
         self.set_spotify_button = QPushButton("Set Spotify Folder")
         self.delete_button = QPushButton("Delete Selected")
         self.delete_button.setStyleSheet("background-color: #d32f2f; color: white;")
+        self.duplicates_button = QPushButton("Find Duplicates")
         
         # Status label for monitoring
         self.status_label = QLabel("Monitoring: Off")
@@ -110,6 +114,7 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.set_spotify_button)
         toolbar.addSeparator()
         toolbar.addWidget(self.delete_button)
+        toolbar.addWidget(self.duplicates_button)
         toolbar.addSeparator()
         toolbar.addWidget(self.status_label)
         self.addToolBar(toolbar)
@@ -120,6 +125,7 @@ class MainWindow(QMainWindow):
         self.search_bar.textChanged.connect(self.apply_search_filter)
         self.set_spotify_button.clicked.connect(self.set_spotify_folder)
         self.delete_button.clicked.connect(self.delete_selected_tracks)
+        self.duplicates_button.clicked.connect(self.find_duplicates)
         
         # Context menu for track list
         self.track_list.customContextMenuRequested.connect(self._show_track_context_menu)
@@ -355,6 +361,16 @@ class MainWindow(QMainWindow):
                 "Deletion Complete",
                 f"Successfully deleted {deleted_count} track(s) from the library."
             )
+
+    # ---------- Duplicate Detection ----------
+    
+    def find_duplicates(self):
+        """Open duplicate detection dialog."""
+        dialog = DuplicateDialog(self.duplicate_service, parent=self)
+        
+        if dialog.exec():
+            # Refresh track list after duplicates are removed
+            self.load_tracks()
 
     # ---------- Spotify Prep ----------
 
