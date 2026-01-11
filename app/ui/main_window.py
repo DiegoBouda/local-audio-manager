@@ -24,8 +24,10 @@ from app.services.index_service import IndexService
 from app.services.watch_service import WatchService
 from app.services.metadata_service import MetadataService
 from app.services.duplicate_service import DuplicateService
+from app.services.spotify_status_service import SpotifyStatusService
 from app.ui.metadata_dialog import MetadataDialog, BatchMetadataDialog
 from app.ui.duplicate_dialog import DuplicateDialog
+from app.ui.spotify_status_dialog import SpotifyStatusDialog
 from app.helpers.audio_helpers import (
     is_supported_audio,
     is_visible_to_spotify
@@ -48,6 +50,7 @@ class MainWindow(QMainWindow):
         self.watch_service = WatchService(self.index_service, self.db_service)
         self.metadata_service = MetadataService()
         self.duplicate_service = DuplicateService(self.db_service)
+        self.spotify_status_service = SpotifyStatusService(self.config)
 
         # UI
         self._setup_window()
@@ -246,6 +249,9 @@ class MainWindow(QMainWindow):
             if len(selected_items) == 1:
                 edit_action = menu.addAction("Edit Metadata...")
                 edit_action.triggered.connect(self.edit_track_metadata)
+                menu.addSeparator()
+                spotify_status_action = menu.addAction("Why isn't this in Spotify?")
+                spotify_status_action.triggered.connect(self.show_spotify_status)
             else:
                 batch_edit_action = menu.addAction("Batch Edit Metadata...")
                 batch_edit_action.triggered.connect(self.batch_edit_track_metadata)
@@ -362,6 +368,26 @@ class MainWindow(QMainWindow):
                 f"Successfully deleted {deleted_count} track(s) from the library."
             )
 
+    # ---------- Spotify Status ----------
+    
+    def show_spotify_status(self):
+        """Show Spotify status explanation for selected track."""
+        selected_items = self.track_list.selectedItems()
+        if not selected_items or len(selected_items) != 1:
+            return
+        
+        track_path = selected_items[0].data(Qt.UserRole)
+        if not track_path:
+            return
+        
+        # Analyze track
+        status_info = self.spotify_status_service.analyze_track(track_path)
+        suggestions = self.spotify_status_service.get_fix_suggestions(status_info)
+        
+        # Show dialog
+        dialog = SpotifyStatusDialog(track_path, status_info, suggestions, parent=self)
+        dialog.exec()
+    
     # ---------- Duplicate Detection ----------
     
     def find_duplicates(self):
