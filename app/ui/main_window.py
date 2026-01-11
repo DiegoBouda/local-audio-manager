@@ -31,6 +31,8 @@ from app.services.index_service import IndexService
 from app.services.watch_service import WatchService
 from app.services.playlist_service import PlaylistService
 from app.services.m3u_service import M3UService
+from app.services.metadata_service import MetadataService
+from app.ui.metadata_dialog import MetadataDialog, BatchMetadataDialog
 from app.helpers.audio_helpers import (
     is_supported_audio,
     is_visible_to_spotify
@@ -53,6 +55,7 @@ class MainWindow(QMainWindow):
         self.watch_service = WatchService(self.index_service, self.db_service)
         self.playlist_service = PlaylistService(self.db_service)
         self.m3u_service = M3UService(self.playlist_service)
+        self.metadata_service = MetadataService()
         
         # Current playlist selection
         self.current_playlist_id = None
@@ -315,11 +318,24 @@ class MainWindow(QMainWindow):
             return
         
         menu = QMenu(self)
+        
+        # Get selected items
+        selected_items = self.track_list.selectedItems()
+        
+        # Edit metadata actions
+        if selected_items:
+            if len(selected_items) == 1:
+                edit_action = menu.addAction("Edit Metadata...")
+                edit_action.triggered.connect(self.edit_track_metadata)
+            else:
+                batch_edit_action = menu.addAction("Batch Edit Metadata...")
+                batch_edit_action.triggered.connect(self.batch_edit_track_metadata)
+        
+        menu.addSeparator()
         delete_action = menu.addAction("Delete Selected Track(s)")
         delete_action.triggered.connect(self.delete_selected_tracks)
         
         # Add "Add to Playlist" submenu if tracks are selected
-        selected_items = self.track_list.selectedItems()
         if selected_items and self.playlist_list.count() > 0:
             menu.addSeparator()
             add_to_playlist_menu = menu.addMenu("Add to Playlist")
@@ -366,6 +382,69 @@ class MainWindow(QMainWindow):
                 "Success",
                 f"Added {added_count} track(s) to playlist '{playlist_name}'."
             )
+
+    # ---------- Metadata Editing ----------
+    
+    def edit_track_metadata(self):
+        """Edit metadata for a single track."""
+        selected_items = self.track_list.selectedItems()
+        if not selected_items or len(selected_items) != 1:
+            return
+        
+        track_path = selected_items[0].data(Qt.UserRole)
+        if not track_path:
+            return
+        
+        file_path = Path(track_path)
+        if not file_path.exists():
+            QMessageBox.warning(self, "Error", "File does not exist.")
+            return
+        
+        dialog = MetadataDialog(
+            file_path,
+            self.metadata_service,
+            self.db_service,
+            self.index_service,
+            parent=self
+        )
+        
+        if dialog.exec():
+            # Reload tracks to reflect changes
+            self.load_tracks()
+    
+    def batch_edit_track_metadata(self):
+        """Batch edit metadata for multiple tracks."""
+        selected_items = self.track_list.selectedItems()
+        if not selected_items or len(selected_items) < 2:
+            QMessageBox.information(
+                self,
+                "No Selection",
+                "Please select multiple tracks to batch edit."
+            )
+            return
+        
+        track_paths = []
+        for item in selected_items:
+            track_path = item.data(Qt.UserRole)
+            if track_path:
+                file_path = Path(track_path)
+                if file_path.exists():
+                    track_paths.append(file_path)
+        
+        if not track_paths:
+            QMessageBox.warning(self, "Error", "No valid tracks selected.")
+            return
+        
+        dialog = BatchMetadataDialog(
+            track_paths,
+            self.metadata_service,
+            self.db_service,
+            parent=self
+        )
+        
+        if dialog.exec():
+            # Reload tracks to reflect changes
+            self.load_tracks()
 
     def delete_selected_tracks(self):
         """Delete selected tracks from the database."""

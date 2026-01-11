@@ -22,9 +22,20 @@ class DBService:
                     title TEXT,
                     artist TEXT,
                     album TEXT,
+                    genre TEXT,
+                    year INTEGER,
                     duration REAL
                 )
             ''')
+            # Migrate existing tables to add genre and year if they don't exist
+            try:
+                c.execute('ALTER TABLE tracks ADD COLUMN genre TEXT')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+            try:
+                c.execute('ALTER TABLE tracks ADD COLUMN year INTEGER')
+            except sqlite3.OperationalError:
+                pass  # Column already exists
             c.execute('''
                 CREATE TABLE IF NOT EXISTS playlists (
                     id INTEGER PRIMARY KEY,
@@ -44,14 +55,45 @@ class DBService:
             ''')
             self.conn.commit()
 
-    def add_track(self, path, title="", artist="", album="", duration=0):
+    def add_track(self, path, title="", artist="", album="", genre="", year=None, duration=0):
         with self.lock:
             c = self.conn.cursor()
             c.execute('''
-                INSERT OR IGNORE INTO tracks (path, title, artist, album, duration)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (path, title, artist, album, duration))
+                INSERT OR IGNORE INTO tracks (path, title, artist, album, genre, year, duration)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (path, title, artist, album, genre, year, duration))
             self.conn.commit()
+    
+    def update_track(self, path, title=None, artist=None, album=None, genre=None, year=None):
+        """Update track metadata in the database."""
+        with self.lock:
+            c = self.conn.cursor()
+            updates = []
+            values = []
+            
+            if title is not None:
+                updates.append("title = ?")
+                values.append(title)
+            if artist is not None:
+                updates.append("artist = ?")
+                values.append(artist)
+            if album is not None:
+                updates.append("album = ?")
+                values.append(album)
+            if genre is not None:
+                updates.append("genre = ?")
+                values.append(genre)
+            if year is not None:
+                updates.append("year = ?")
+                values.append(year)
+            
+            if updates:
+                values.append(path)
+                c.execute(f'''
+                    UPDATE tracks SET {', '.join(updates)}
+                    WHERE path = ?
+                ''', values)
+                self.conn.commit()
 
     def get_all_tracks(self):
         with self.lock:

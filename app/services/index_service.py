@@ -31,6 +31,24 @@ class IndexService:
             title = audio.get("title", [""])[0] if audio else ""
             artist = audio.get("artist", [""])[0] if audio else ""
             album = audio.get("album", [""])[0] if audio else ""
+            genre = audio.get("genre", [""])[0] if audio else ""
+            
+            # Extract year - can be in date or TDRC tag
+            year = None
+            if audio:
+                if "date" in audio:
+                    try:
+                        date_str = str(audio.get("date", [""])[0])
+                        year = int(date_str[:4]) if date_str[:4].isdigit() else None
+                    except (ValueError, IndexError):
+                        pass
+                elif "TDRC" in audio:
+                    try:
+                        date_str = str(audio.get("TDRC", [""])[0])
+                        year = int(date_str[:4]) if date_str[:4].isdigit() else None
+                    except (ValueError, IndexError):
+                        pass
+            
             duration = audio.info.length if audio and hasattr(audio, "info") else 0
 
             self.db.add_track(
@@ -38,6 +56,8 @@ class IndexService:
                 title,
                 artist,
                 album,
+                genre,
+                year,
                 duration
             )
         except Exception as e:
