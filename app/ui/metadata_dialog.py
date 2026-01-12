@@ -21,6 +21,8 @@ import logging
 from app.services.metadata_service import MetadataService
 from app.services.db_service import DBService
 from app.services.index_service import IndexService
+from app.services.musicbrainz_service import MusicBrainzService
+from app.ui.musicbrainz_fetch_dialog import MusicBrainzFetchDialog
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +31,15 @@ class MetadataDialog(QDialog):
     """Dialog for editing audio file metadata."""
     
     def __init__(self, file_path: Path, metadata_service: MetadataService, 
-                 db_service: DBService, index_service: IndexService, 
+                 db_service: DBService, index_service: IndexService,
+                 musicbrainz_service: MusicBrainzService = None,
                  parent=None, batch_mode=False):
         super().__init__(parent)
         self.file_path = file_path
         self.metadata_service = metadata_service
         self.db_service = db_service
         self.index_service = index_service
+        self.musicbrainz_service = musicbrainz_service
         self.batch_mode = batch_mode
         self.artwork_path = None
         
@@ -47,6 +51,15 @@ class MetadataDialog(QDialog):
     
     def _setup_ui(self):
         layout = QVBoxLayout(self)
+        
+        # Fetch from MusicBrainz button (if service available)
+        if self.musicbrainz_service:
+            fetch_button_layout = QHBoxLayout()
+            self.fetch_mb_button = QPushButton("Fetch from MusicBrainz")
+            self.fetch_mb_button.clicked.connect(self._fetch_from_musicbrainz)
+            fetch_button_layout.addWidget(self.fetch_mb_button)
+            fetch_button_layout.addStretch()
+            layout.addLayout(fetch_button_layout)
         
         # Form fields
         form_group = QGroupBox("Metadata")
@@ -120,10 +133,62 @@ class MetadataDialog(QDialog):
         else:
             self.year_spin.setValue(0)
         
+        # Get duration for MusicBrainz matching
+        try:
+            from mutagen import File
+            audio = File(str(self.file_path), easy=True)
+            self.duration = audio.info.length if audio and hasattr(audio, "info") else None
+        except:
+            self.duration = None
+        
         # Load artwork
         artwork_data = metadata.get("artwork")
         if artwork_data:
             self._display_artwork(artwork_data)
+    
+    def _fetch_from_musicbrainz(self):
+        """Fetch metadata from MusicBrainz."""
+        if not self.musicbrainz_service:
+            return
+        
+        # Get current metadata
+        current_metadata = {
+            "title": self.title_edit.text().strip(),
+            "artist": self.artist_edit.text().strip(),
+            "album": self.album_edit.text().strip(),
+            "year": self.year_spin.value() if self.year_spin.value() > 0 else None,
+            "duration": self.duration
+        }
+        
+        # Open fetch dialog
+        dialog = MusicBrainzFetchDialog(
+            self.file_path,
+            current_metadata,
+            self.musicbrainz_service,
+            parent=self
+        )
+        
+        # If user canceled the initial prompt (clicked No), don't proceed
+        if not dialog.should_fetch:
+            return
+        
+        # Only show dialog if we're actually fetching
+        if dialog.exec() and hasattr(dialog, 'applied_fields'):
+            # Apply fetched metadata to form
+            applied = dialog.applied_fields
+            if applied.get("title"):
+                self.title_edit.setText(applied["title"])
+            if applied.get("artist"):
+                self.artist_edit.setText(applied["artist"])
+            if applied.get("album"):
+                self.album_edit.setText(applied["album"])
+            if applied.get("year"):
+                self.year_spin.setValue(applied["year"])
+            
+            # Set artwork path if downloaded
+            if hasattr(dialog, 'artwork_path') and dialog.artwork_path:
+                self.artwork_path = dialog.artwork_path
+                self._display_artwork_from_file(dialog.artwork_path)
     
     def _load_artwork(self):
         """Load artwork from a file."""

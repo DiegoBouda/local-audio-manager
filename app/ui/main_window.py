@@ -51,6 +51,11 @@ class MainWindow(QMainWindow):
         self.metadata_service = MetadataService()
         self.duplicate_service = DuplicateService(self.db_service)
         self.spotify_status_service = SpotifyStatusService(self.config)
+        
+        from app.services.musicbrainz_service import MusicBrainzService
+        from app.services.artwork_service import ArtworkService
+        self.musicbrainz_service = MusicBrainzService()
+        self.artwork_service = ArtworkService()
 
         # UI
         self._setup_window()
@@ -202,17 +207,22 @@ class MainWindow(QMainWindow):
 
     def format_track_display(self, track, spotify_folders):
         path = Path(track[1])
+        
+        # Spotify status
         if not is_supported_audio(path):
-            status = "[✖ Incompatible]"
+            spotify_status = "[✖ Incompatible]"
         elif spotify_folders and not is_visible_to_spotify(path, spotify_folders):
-            status = "[⚠ Not Visible]"
+            spotify_status = "[⚠ Not Visible]"
         else:
-            status = "[✔ Ready]"
+            spotify_status = "[✔ Ready]"
+        
+        # Artwork status
+        artwork_status = self.artwork_service.get_artwork_status(path)
 
         artist = track[3] or "Unknown Artist"
         title = track[2] or "Unknown Title"
 
-        return f"{status} {artist} - {title}"
+        return f"{spotify_status} {artwork_status} {artist} - {title}"
 
     def apply_search_filter(self):
         query = self.search_bar.text().lower()
@@ -284,6 +294,7 @@ class MainWindow(QMainWindow):
             self.metadata_service,
             self.db_service,
             self.index_service,
+            musicbrainz_service=self.musicbrainz_service,
             parent=self
         )
         
