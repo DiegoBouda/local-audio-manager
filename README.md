@@ -157,10 +157,6 @@ Contributions are welcome! Please follow these guidelines:
 3. Ensure all tests pass before submitting
 4. Document new features and API changes
 
-## License
-
-[Add your license here]
-
 ## Acknowledgments
 
 - MusicBrainz for providing the music metadata database
